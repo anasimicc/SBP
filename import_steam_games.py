@@ -1,6 +1,7 @@
 import csv
 import pandas as pd
 from pymongo import MongoClient
+import ast
 
 client = MongoClient("mongodb://localhost:27017/")
 db = client["SBP"]
@@ -11,10 +12,18 @@ rows = []
 with open("games.csv", encoding="utf-8-sig", newline="") as f:
     reader = csv.reader(f, quotechar='"', doublequote=True, skipinitialspace=True)
     header = next(reader)
-    header.insert(16, "Support email 2")  # FIX
+
+    # Ispravka: "DiscountDLC count" je u fajlu spojeno ime dve kolone
+    # jer u header redu fali zarez. Razdvajamo ih na pravo mesto.
+    idx = header.index("DiscountDLC count")
+    header[idx:idx + 1] = ["Discount", "DLC count"]
+
     for row in reader:
         if len(row) == len(header):
             rows.append(row)
+
+print("Header duzina posle ispravke:", len(header))   # treba da bude 40
+print("Ucitano redova:", len(rows))                # treba da bude blizu 122611
 
 df = pd.DataFrame(rows, columns=header)
 df.columns = df.columns.str.strip()
@@ -39,6 +48,17 @@ def split_list(x):
 def to_bool(x):
     return str(x).strip().lower() == "true"
 
+def parse_lang_list(x):
+    if pd.isna(x) or not str(x).strip():
+        return []
+    try:
+        result = ast.literal_eval(x)
+        if isinstance(result, list):
+            return [str(i).strip() for i in result]
+    except (ValueError, SyntaxError):
+        pass
+    return []
+
 batch = []
 batch_size = 5000
 counter = 1
@@ -51,7 +71,7 @@ for _, row in df.iterrows():
         "release_date": str(row.get("Release date", "")),
         "price": safe_float(row.get("Price", 0)),
         "required_age": safe_int(row.get("Required age", 0)),
-        "dlc_count": safe_int(row.get("DiscountDLC count", 0)),
+        "dlc_count": safe_int(row.get("DLC count", 0)),
         "platforms": {
             "windows": to_bool(row.get("Windows", False)),
             "mac": to_bool(row.get("Mac", False)),
@@ -73,8 +93,8 @@ for _, row in df.iterrows():
         "categories": split_list(row.get("Categories", "")),
         "genres": split_list(row.get("Genres", "")),
         "tags": split_list(row.get("Tags", "")),
-        "supported_languages": split_list(row.get("Supported languages", "")),
-        "audio_languages": split_list(row.get("Full audio languages", "")),
+        "supported_languages": parse_lang_list(row.get("Supported languages", "")),
+        "audio_languages": parse_lang_list(row.get("Full audio languages", "")),
         "website": str(row.get("Website", "")),
         "description": str(row.get("About the game", ""))
     }
