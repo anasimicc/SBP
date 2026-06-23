@@ -5,7 +5,7 @@ import ast
 
 client = MongoClient("mongodb://localhost:27017/")
 db = client["SBP"]
-collection = db["steam_games"]
+collection = db["steam_games_optimization"]
 collection.drop()
 
 rows = []
